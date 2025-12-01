@@ -1,8 +1,8 @@
 const embeddingService = require('./embeddingService');
-const db = require('./db');
+const Part = require('./models/Part');
 
-// In-memory store for demonstration if MongoDB is not connected
-let partsMemory = [];
+// Initial categories
+let categoriesMemory = ['Engine', 'Brakes', 'Suspension', 'Electrical', 'Body'];
 
 /**
  * Calculate Cosine Similarity between two vectors
@@ -11,7 +11,7 @@ let partsMemory = [];
  * @returns {number} - Similarity score (-1 to 1)
  */
 function cosineSimilarity(vecA, vecB) {
-    if (vecA.length !== vecB.length) return 0;
+    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
     let dotProduct = 0;
     let normA = 0;
     let normB = 0;
@@ -23,9 +23,6 @@ function cosineSimilarity(vecA, vecB) {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-// Initial categories
-let categoriesMemory = ['Engine', 'Brakes', 'Suspension', 'Electrical', 'Body'];
-
 exports.addPart = async (req, res) => {
     try {
         const { name, number, category, stock, description, image } = req.body;
@@ -33,7 +30,8 @@ exports.addPart = async (req, res) => {
         // 1. Generate Embedding
         const embedding = await embeddingService.generateImageEmbedding(image);
 
-        const newPart = {
+        // 2. Save to Database
+        const newPart = new Part({
             id: Date.now().toString(),
             name,
             number,
@@ -41,13 +39,10 @@ exports.addPart = async (req, res) => {
             stock: parseInt(stock),
             description,
             image, // In production, store image in S3/Cloudinary and save URL here
-            embedding,
-            createdAt: new Date()
-        };
+            embedding
+        });
 
-        // 2. Save to Database
-        // await db.collection('parts').insertOne(newPart);
-        partsMemory.push(newPart);
+        await newPart.save();
 
         // 3. Update Categories if new
         if (!categoriesMemory.includes(category)) {
@@ -68,15 +63,15 @@ exports.matchPart = async (req, res) => {
         // 1. Generate Embedding for Query Image
         const queryEmbedding = await embeddingService.generateImageEmbedding(image);
 
-        // 2. Fetch all parts (or use Vector Search if DB supports it)
-        // const allParts = await db.collection('parts').find().toArray();
-        const allParts = partsMemory;
+        // 2. Fetch all parts
+        // Note: For large datasets, use MongoDB Vector Search (Atlas Search)
+        const allParts = await Part.find({});
 
         // 3. Calculate Similarity
         const matches = allParts.map(part => {
             const score = cosineSimilarity(queryEmbedding, part.embedding);
             return {
-                ...part,
+                ...part.toObject(),
                 score: score,
                 accuracy: Math.round(score * 100) // Convert to percentage
             };
@@ -93,24 +88,34 @@ exports.matchPart = async (req, res) => {
     }
 };
 
-exports.getAllParts = (req, res) => {
-    res.json(partsMemory);
+exports.getAllParts = async (req, res) => {
+    try {
+        const parts = await Part.find({});
+        res.json(parts);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch parts' });
+    }
 };
 
-exports.getStats = (req, res) => {
-    const totalParts = partsMemory.length;
-    const lowStock = partsMemory.filter(p => p.stock < 10).length; // Assuming < 10 is low stock
+exports.getStats = async (req, res) => {
+    try {
+        const parts = await Part.find({});
+        const totalParts = parts.length;
+        const lowStock = parts.filter(p => p.stock < 10).length;
 
-    // Get 5 most recent parts
-    const recentParts = [...partsMemory]
-        .sort((a, b) => b.createdAt - a.createdAt)
-        .slice(0, 5);
+        // Get 5 most recent parts
+        const recentParts = [...parts]
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 5);
 
-    res.json({
-        totalParts,
-        lowStock,
-        recentParts
-    });
+        res.json({
+            totalParts,
+            lowStock,
+            recentParts
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
 };
 
 exports.getCategories = (req, res) => {
