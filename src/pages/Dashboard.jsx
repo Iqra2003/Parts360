@@ -13,17 +13,24 @@ const Dashboard = () => {
     });
     const [loading, setLoading] = React.useState(true);
 
+    const [error, setError] = useState(null);
+
     React.useEffect(() => {
         fetchStats();
     }, []);
 
     const fetchStats = async () => {
         try {
+            setError(null);
             const response = await fetch('/api/stats');
+            if (!response.ok) {
+                throw new Error('Server error');
+            }
             const data = await response.json();
             setStats(data);
         } catch (error) {
             console.error('Failed to fetch stats:', error);
+            setError('Failed to load dashboard data. The server might be waking up.');
         } finally {
             setLoading(false);
         }
@@ -36,7 +43,27 @@ const Dashboard = () => {
     };
 
     if (loading) {
-        return <div className="p-8 text-center text-slate-500">Loading dashboard...</div>;
+        return (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
+                <p>Loading dashboard...</p>
+                <p className="text-sm text-slate-400 mt-2">This may take a minute if the server is waking up.</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 text-red-500">
+                <p className="mb-4">{error}</p>
+                <button
+                    onClick={fetchStats}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     return (
