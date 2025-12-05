@@ -90,7 +90,7 @@ exports.matchPart = async (req, res) => {
 
 exports.getAllParts = async (req, res) => {
     try {
-        const parts = await Part.find({});
+        const parts = await Part.find({}).select('-embedding');
         res.json(parts);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch parts' });
@@ -99,14 +99,14 @@ exports.getAllParts = async (req, res) => {
 
 exports.getStats = async (req, res) => {
     try {
-        const parts = await Part.find({});
-        const totalParts = parts.length;
-        const lowStock = parts.filter(p => p.stock < 10).length;
+        const totalParts = await Part.countDocuments({});
+        const lowStock = await Part.countDocuments({ stock: { $lt: 10 } });
 
-        // Get 5 most recent parts
-        const recentParts = [...parts]
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, 5);
+        // Get 5 most recent parts, excluding heavy fields
+        const recentParts = await Part.find({})
+            .select('-image -embedding')
+            .sort({ createdAt: -1 })
+            .limit(5);
 
         res.json({
             totalParts,
@@ -114,6 +114,7 @@ exports.getStats = async (req, res) => {
             recentParts
         });
     } catch (error) {
+        console.error('Error fetching stats:', error);
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
 };
