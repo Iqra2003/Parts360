@@ -121,3 +121,60 @@ exports.getStats = async (req, res) => {
 exports.getCategories = (req, res) => {
     res.json(categoriesMemory);
 };
+
+exports.updatePart = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, number, category, stock, description, image } = req.body;
+
+        const updateData = {
+            name,
+            number,
+            category,
+            stock: parseInt(stock),
+            description
+        };
+
+        // Only update image and embedding if a new image is provided
+        if (image) {
+            updateData.image = image;
+            updateData.embedding = await embeddingService.generateImageEmbedding(image);
+        }
+
+        const updatedPart = await Part.findOneAndUpdate(
+            { id: id },
+            updateData,
+            { new: true }
+        );
+
+        if (!updatedPart) {
+            return res.status(404).json({ error: 'Part not found' });
+        }
+
+        // Update categories if new
+        if (!categoriesMemory.includes(category)) {
+            categoriesMemory.push(category);
+        }
+
+        res.json({ message: 'Part updated successfully', part: updatedPart });
+    } catch (error) {
+        console.error('Error updating part:', error);
+        res.status(500).json({ error: 'Failed to update part' });
+    }
+};
+
+exports.deletePart = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedPart = await Part.findOneAndDelete({ id: id });
+
+        if (!deletedPart) {
+            return res.status(404).json({ error: 'Part not found' });
+        }
+
+        res.json({ message: 'Part deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting part:', error);
+        res.status(500).json({ error: 'Failed to delete part' });
+    }
+};

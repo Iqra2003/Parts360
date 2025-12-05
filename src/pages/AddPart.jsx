@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Upload, X, Plus } from 'lucide-react';
 
 const AddPart = () => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+    const isEditMode = !!id;
     const [image, setImage] = useState(null);
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState([]);
@@ -17,6 +21,9 @@ const AddPart = () => {
 
     useEffect(() => {
         fetchCategories();
+        if (isEditMode) {
+            fetchPartDetails();
+        }
 
         // Add paste listener
         const handlePaste = (e) => {
@@ -36,7 +43,27 @@ const AddPart = () => {
 
         window.addEventListener('paste', handlePaste);
         return () => window.removeEventListener('paste', handlePaste);
-    }, []);
+    }, [id]);
+
+    const fetchPartDetails = async () => {
+        try {
+            const response = await fetch('/api/parts');
+            const data = await response.json();
+            const part = data.find(p => p.id === id);
+            if (part) {
+                setFormData({
+                    name: part.name,
+                    number: part.number,
+                    category: part.category,
+                    stock: part.stock,
+                    description: part.description || ''
+                });
+                setImage(part.image);
+            }
+        } catch (error) {
+            console.error('Failed to fetch part details:', error);
+        }
+    };
 
     const fetchCategories = async () => {
         try {
@@ -89,8 +116,11 @@ const AddPart = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/parts', {
-                method: 'POST',
+            const url = isEditMode ? `/api/parts/${id}` : '/api/parts';
+            const method = isEditMode ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -101,22 +131,26 @@ const AddPart = () => {
             });
 
             if (response.ok) {
-                alert('Part added successfully!');
-                setFormData({
-                    name: '',
-                    number: '',
-                    category: '',
-                    stock: '',
-                    description: ''
-                });
-                setImage(null);
-                fetchCategories(); // Refresh categories in case backend normalized something
+                alert(`Part ${isEditMode ? 'updated' : 'added'} successfully!`);
+                if (isEditMode) {
+                    navigate('/parts');
+                } else {
+                    setFormData({
+                        name: '',
+                        number: '',
+                        category: '',
+                        stock: '',
+                        description: ''
+                    });
+                    setImage(null);
+                    fetchCategories(); // Refresh categories in case backend normalized something
+                }
             } else {
-                alert('Failed to add part');
+                alert(`Failed to ${isEditMode ? 'update' : 'add'} part`);
             }
         } catch (error) {
-            console.error('Error adding part:', error);
-            alert('Error adding part');
+            console.error(`Error ${isEditMode ? 'updating' : 'adding'} part:`, error);
+            alert(`Error ${isEditMode ? 'updating' : 'adding'} part`);
         } finally {
             setLoading(false);
         }
@@ -124,7 +158,7 @@ const AddPart = () => {
 
     return (
         <div className="max-w-3xl mx-auto">
-            <h1 className="text-2xl font-bold text-slate-900 mb-8">Add New Spare Part</h1>
+            <h1 className="text-2xl font-bold text-slate-900 mb-8">{isEditMode ? 'Edit Spare Part' : 'Add New Spare Part'}</h1>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
                 <form className="space-y-6" onSubmit={handleSubmit}>
@@ -271,7 +305,7 @@ const AddPart = () => {
                             disabled={loading}
                             className={`px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            {loading ? 'Adding...' : 'Add Part'}
+                            {loading ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Part' : 'Add Part')}
                         </button>
                     </div>
                 </form>

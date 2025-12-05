@@ -37,6 +37,12 @@ app.get('/api/stats', partController.getStats);
 // Get categories
 app.get('/api/categories', partController.getCategories);
 
+// Update a part
+app.put('/api/parts/:id', partController.updatePart);
+
+// Delete a part
+app.delete('/api/parts/:id', partController.deletePart);
+
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
 app.get('*', (req, res) => {

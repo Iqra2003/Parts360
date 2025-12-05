@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, Filter } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const PartsList = () => {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [parts, setParts] = useState([]);
     const [filteredParts, setFilteredParts] = useState([]);
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -59,6 +60,29 @@ const PartsList = () => {
         }
 
         setFilteredParts(result);
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this part?')) {
+            try {
+                const response = await fetch(`/api/parts/${id}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    setParts(parts.filter(part => part.id !== id));
+                } else {
+                    alert('Failed to delete part');
+                }
+            } catch (error) {
+                console.error('Error deleting part:', error);
+                alert('Error deleting part');
+            }
+        }
+    };
+
+    const handleEdit = (id) => {
+        navigate(`/edit-part/${id}`);
     };
 
     if (loading) {
@@ -141,10 +165,16 @@ const PartsList = () => {
                                         <td className="px-6 py-4 text-slate-900">{part.stock}</td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
-                                                <button className="p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+                                                <button
+                                                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                    onClick={() => handleEdit(part.id)}
+                                                >
                                                     <Edit2 size={18} />
                                                 </button>
-                                                <button className="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                                                <button
+                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                    onClick={() => handleDelete(part.id)}
+                                                >
                                                     <Trash2 size={18} />
                                                 </button>
                                             </div>

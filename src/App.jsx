@@ -13,6 +13,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="add-part" element={<AddPart />} />
+          <Route path="edit-part/:id" element={<AddPart />} />
           <Route path="parts" element={<PartsList />} />
           <Route path="matching" element={<ImageMatching />} />
         </Route>
