@@ -6,7 +6,7 @@ const AddPart = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const isEditMode = !!id;
-    const [image, setImage] = useState(null);
+    const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState([]);
     const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -33,10 +33,10 @@ const AddPart = () => {
                     const blob = items[i].getAsFile();
                     const reader = new FileReader();
                     reader.onload = (event) => {
-                        setImage(event.target.result);
+                        setImages(prev => [...prev, event.target.result]);
                     };
                     reader.readAsDataURL(blob);
-                    break; // Only take the first image
+                    // Continue loop to allow pasting multiple images if copied together
                 }
             }
         };
@@ -58,7 +58,12 @@ const AddPart = () => {
                     stock: part.stock,
                     description: part.description || ''
                 });
-                setImage(part.image);
+                // Handle legacy parts that only have 'image' vs new ones with 'images'
+                if (part.images && part.images.length > 0) {
+                    setImages(part.images);
+                } else if (part.image) {
+                    setImages([part.image]);
+                }
             }
         } catch (error) {
             console.error('Failed to fetch part details:', error);
@@ -76,18 +81,19 @@ const AddPart = () => {
     };
 
     const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
+        const files = Array.from(e.target.files);
+
+        files.forEach(file => {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setImage(reader.result);
+                setImages(prev => [...prev, reader.result]);
             };
             reader.readAsDataURL(file);
-        }
+        });
     };
 
-    const removeImage = () => {
-        setImage(null);
+    const removeImage = (indexToRemove) => {
+        setImages(images.filter((_, index) => index !== indexToRemove));
     };
 
     const handleChange = (e) => {
@@ -109,8 +115,8 @@ const AddPart = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!image) {
-            alert('Please upload an image');
+        if (images.length === 0) {
+            alert('Please upload at least one image');
             return;
         }
 
@@ -126,7 +132,7 @@ const AddPart = () => {
                 },
                 body: JSON.stringify({
                     ...formData,
-                    image
+                    images // Send array of images
                 }),
             });
 
@@ -142,8 +148,8 @@ const AddPart = () => {
                         stock: '',
                         description: ''
                     });
-                    setImage(null);
-                    fetchCategories(); // Refresh categories in case backend normalized something
+                    setImages([]);
+                    fetchCategories();
                 }
             } else {
                 alert(`Failed to ${isEditMode ? 'update' : 'add'} part`);
@@ -266,37 +272,39 @@ const AddPart = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">Part Image</label>
-                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors cursor-pointer relative">
-                            {image ? (
-                                <div className="relative">
-                                    <img src={image} alt="Preview" className="max-h-64 rounded-lg" />
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Part Images (Upload Multiple)</label>
+
+                        {/* Image Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            {images.map((img, index) => (
+                                <div key={index} className="relative group">
+                                    <img src={img} alt={`Part view ${index + 1}`} className="h-32 w-full object-cover rounded-lg border border-slate-200" />
                                     <button
                                         type="button"
-                                        onClick={removeImage}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                        onClick={() => removeImage(index)}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-md opacity-0 group-hover:opacity-100"
                                     >
                                         <X size={16} />
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="space-y-1 text-center">
-                                    <Upload className="mx-auto h-12 w-12 text-slate-400" />
-                                    <div className="flex text-sm text-slate-600 justify-center">
-                                        <label
-                                            htmlFor="file-upload"
-                                            className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none"
-                                        >
-                                            <span>Upload a file</span>
-                                            <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleImageUpload} accept="image/*" />
-                                        </label>
-                                        <p className="pl-1">or drag and drop</p>
-                                    </div>
-                                    <p className="text-xs text-slate-500">PNG, JPG, GIF up to 10MB</p>
-                                    <p className="text-xs text-indigo-500 font-medium mt-2">Tip: You can paste (Ctrl+V) an image here!</p>
-                                </div>
-                            )}
+                            ))}
+
+                            {/* Upload Button Block */}
+                            <label className="relative cursor-pointer h-32 flex flex-col items-center justify-center border-2 border-slate-300 border-dashed rounded-lg hover:bg-slate-50 transition-colors">
+                                <Upload className="h-8 w-8 text-slate-400 mb-1" />
+                                <span className="text-xs text-slate-500 font-medium">Add Image</span>
+                                <input
+                                    type="file"
+                                    multiple
+                                    className="sr-only"
+                                    onChange={handleImageUpload}
+                                    accept="image/*"
+                                />
+                            </label>
                         </div>
+
+                        <p className="text-xs text-slate-500">Supported formats: PNG, JPG, GIF. Max 50MB total.</p>
+                        <p className="text-xs text-indigo-500 font-medium mt-2">Tip: You can paste (Ctrl+V) images directly!</p>
                     </div>
 
                     <div className="flex justify-end pt-4">
